@@ -1,13 +1,13 @@
 import streamlit as st
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
+
 st.set_page_config(
     page_title="Dashboard Analisa LR by Kategori Okupasi",
     page_icon="📊",
     layout="wide",
 )
-
-import pandas as pd
-import plotly.express as px
-import plotly.graph_objects as go
 
 # Header dan instruksi
 st.markdown("# 📊 Dashboard Analisa Loss Ratio Berdasarkan Kategori Okupasi")
@@ -18,7 +18,6 @@ st.markdown("""
     </div>
 """, unsafe_allow_html=True)
 st.markdown("<br>", unsafe_allow_html=True)
-
 
 # Fungsi untuk baca dan bersihkan file Excel
 def read_excel(file):
@@ -32,8 +31,11 @@ file_premi = st.file_uploader("📂 Upload Data Premi (Excel)", type="xlsx", key
 if file_premi:
     df_premi = read_excel(file_premi)
     df_premi['Sumber Data'] = 'Premi'
+    # Deduplikasi berdasarkan key_columns_premi
+    key_columns_premi = ['NO POLIS', 'NO SERTIFIKAT', 'INSURED NAME']
+    df_premi = df_premi.drop_duplicates(subset=key_columns_premi, keep='first')
     st.write("### 1️⃣ Preview Data Premi")
-    st.info(f"🔍 Data Premi memiliki **{len(df_premi):,} baris.**")
+    st.info(f"🔍 Data Premi memiliki **{len(df_premi):,} baris setelah deduplikasi.**")
     st.dataframe(df_premi.head(), hide_index=True)
 
 # 2. Klaim
@@ -41,8 +43,11 @@ file_klaim = st.file_uploader("📂 Upload Data Klaim (Excel)", type="xlsx", key
 if file_klaim:
     df_klaim = read_excel(file_klaim)
     df_klaim['Sumber Data'] = 'Klaim'
+    # Deduplikasi berdasarkan key_columns_klaim
+    key_columns_klaim = ['NO KLAIM', 'CLAIM AMOUNT (IDR)']
+    df_klaim = df_klaim.drop_duplicates(subset=key_columns_klaim, keep='first')
     st.write("### 2️⃣ Preview Data Klaim")
-    st.info(f"🔍 Data Klaim memiliki **{len(df_klaim):,} baris.**")
+    st.info(f"🔍 Data Klaim memiliki **{len(df_klaim):,} baris setelah deduplikasi.**")
     st.dataframe(df_klaim.head(), hide_index=True)
 
 # 3. OS Klaim
@@ -50,8 +55,11 @@ file_os = st.file_uploader("📂 Upload Data Outstanding Klaim (Excel)", type="x
 if file_os:
     df_os_klaim = read_excel(file_os)
     df_os_klaim['Sumber Data'] = 'OS Klaim'
+    # Deduplikasi berdasarkan key_columns_osklaim
+    key_columns_osklaim = ['INSURED NAME']
+    df_os_klaim = df_os_klaim.drop_duplicates(subset=key_columns_osklaim, keep='first')
     st.write("### 3️⃣ Preview Data Outstanding Klaim")
-    st.info(f"🔍 Data OS Klaim memiliki **{len(df_os_klaim):,} baris.**")
+    st.info(f"🔍 Data OS Klaim memiliki **{len(df_os_klaim):,} baris setelah deduplikasi.**")
     st.dataframe(df_os_klaim.head(), hide_index=True)
 
 # Daftar kolom
@@ -63,11 +71,6 @@ desired_columns = [
 additional_columns = [
     'Premi Gross', 'Akuisisi', 'Premi Reas', 'Komisi Reas',
     'Paid Claim', 'Recovery Klaim Reas', 'OS Claim', 'Recovery OS Claim Reas'
-]
-key_columns = [
-    'AY', 'UY', 'TOC_MOD', 'Kategori Okupasi', 'Kategori Risiko Okupasi',
-    'INSURED NAME', 'NO POLIS', 'NO SERTIFIKAT', 'NO KLAIM',
-    'INCEPTION DATE', 'EXPIRY DATE', 'Sumber Data'
 ]
 
 # Proses data jika semua file diunggah
@@ -88,11 +91,11 @@ if file_premi and file_klaim and file_os:
         'Reas': 'Recovery OS Claim Reas'
     })
 
-    # Gabungkan dataframe
+    # Gabungkan dataframe setelah deduplikasi
     df_combined = pd.concat([df_premi, df_klaim, df_os_klaim], ignore_index=True)
 
-    # Normalisasi key columns untuk deduplikasi
-    for col in key_columns:
+    # Normalisasi kolom untuk konsistensi
+    for col in desired_columns:
         if col in df_combined.columns:
             df_combined[col] = df_combined[col].astype(str).str.strip()
             df_combined[col] = df_combined[col].replace(['nan', 'None'], pd.NA)
@@ -101,10 +104,6 @@ if file_premi and file_klaim and file_os:
     for col in additional_columns:
         if col not in df_combined.columns:
             df_combined[col] = pd.NA
-
-    # Deduplikasi
-    df_combined = df_combined.drop_duplicates(subset=key_columns, keep='first')
-    st.info(f"🔍 Data gabungan setelah deduplikasi memiliki **{len(df_combined):,} baris.**")
 
     # Pilih kolom yang diinginkan
     final_columns = [col for col in desired_columns if col in df_combined.columns] + additional_columns
@@ -165,7 +164,7 @@ if file_premi and file_klaim and file_os:
     if 'EXPIRY DATE' in filtered_df_display.columns:
         filtered_df_display['EXPIRY DATE'] = filtered_df_display['EXPIRY DATE'].dt.strftime('%Y-%m-%d')
 
-    st.write("### Preview Data Gabungan (Setelah Deduplikasi)")
+    st.write("### Preview Data Gabungan")
     st.dataframe(filtered_df_display, hide_index=True)
     st.info(f"🔍 Data yang ditampilkan memiliki **{len(filtered_df):,} baris.**")
 
@@ -562,10 +561,11 @@ if file_premi and file_klaim and file_os:
 
     # Hitung loss ratio
     lossratio = (
-    ((filtered_df_display["Paid Claim"].sum()
-    + filtered_df_display["OS Claim"].sum()) - (filtered_df_display["Recovery Klaim Reas"].sum() + filtered_df_display["Recovery OS Claim Reas"].sum()))
-    ) / (filtered_df_display["Premi Gross"].sum()-filtered_df_display["Akuisisi"].sum()-filtered_df_display["Premi Reas"].sum()+filtered_df_display["Komisi Reas"].sum())
-    
+        ((filtered_df_display["Paid Claim"].sum() + filtered_df_display["OS Claim"].sum()) - 
+         (filtered_df_display["Recovery Klaim Reas"].sum() + filtered_df_display["Recovery OS Claim Reas"].sum()))
+    ) / (filtered_df_display["Premi Gross"].sum() - filtered_df_display["Akuisisi"].sum() - 
+         filtered_df_display["Premi Reas"].sum() + filtered_df_display["Komisi Reas"].sum())
+
     # Histogram dan Loss Ratio
     col1, col2 = st.columns(2)
 
@@ -595,11 +595,11 @@ if file_premi and file_klaim and file_os:
         )
         fig.update_layout(
             legend=dict(
-                orientation="v",     # tetap vertical
-                yanchor="middle",    # anchor vertikal di tengah
-                y=0.5,               # 50% tinggi chart (tengah)
-                xanchor="left",      # anchor horizontal di kiri legend box
-                x=1.0                # tepat di kanan luar chart
+                orientation="v",
+                yanchor="middle",
+                y=0.5,
+                xanchor="left",
+                x=1.0
             )
         )
 
@@ -629,7 +629,7 @@ if file_premi and file_klaim and file_os:
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
         st.markdown("<br>", unsafe_allow_html=True)
-        
+
         st.markdown(f"""
             <style>
                 .section-box {{
