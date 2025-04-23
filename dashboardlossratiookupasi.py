@@ -337,7 +337,7 @@ if file_premi and file_klaim and file_os:
             height=500,
             margin=dict(l=250, r=50, t=10, b=10),
             font=dict(size=14),
-            xaxis_title="Premi",
+            xaxis_title="Klaim",
             yaxis_title=None,
             showlegend=False
         )
